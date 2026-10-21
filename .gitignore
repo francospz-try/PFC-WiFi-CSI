@@ -1,0 +1,16 @@
+__pycache__/
+*.py[cod]
+.venv/
+*.sqlite3
+*.log
+outputs/*
+!outputs/.gitkeep
+datos_locales/
+.env
+.env.*
+*.mat
+*.npz
+*.zip
+
+.django-secret
+.pytest_cache/
