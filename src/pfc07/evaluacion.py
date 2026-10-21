@@ -1,6 +1,13 @@
-"""Evaluación cross-environment, soporte y consulta disjuntos."""
+"""EvaluaciÃ³n cross-environment, soporte y consulta disjuntos."""
 import csv
 import json
+import hashlib
+import platform
+import shutil
+import uuid
+from datetime import datetime, timezone
+import joblib
+import sklearn
 from pathlib import Path
 import numpy as np
 from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score, confusion_matrix
@@ -12,8 +19,8 @@ def dividir_soporte_consulta(y, orden, clases=CLASES, max_shot=10, guardia=4,
                              minimo_consulta=5):
     """Reservar primeras ventanas de cada clase para soporte, luego purga y consulta.
 
-    Ventanas son NO superpuestas; la separación no crea sesiones independientes.
-    Para mayor rigor, usar grabaciones independientes, si están disponibles.
+    Ventanas son NO superpuestas; la separaciÃ³n no crea sesiones independientes.
+    Para mayor rigor, usar grabaciones independientes, si estÃ¡n disponibles.
     """
     y, orden = np.asarray(y), np.asarray(orden)
     if len(y) != len(orden):
@@ -31,25 +38,32 @@ def dividir_soporte_consulta(y, orden, clases=CLASES, max_shot=10, guardia=4,
 
 def ejecutar_experimento(origen, destino, salida, semilla=42, shots=SHOT_VALUES,
                            etiqueta='DATOS_REALES_NO_AUDITADOS'):
-    """Realiza evaluación verificando separación de ambientes y coincidencia de clases."""
+    """Realiza evaluaciÃ³n verificando separaciÃ³n de ambientes y coincidencia de clases."""
     for datos in (origen, destino):
         for campo in ('X', 'y', 'orden', 'escenario', 'receptor'):
             if campo not in datos:
-                raise ValueError(f'Falta campo {campo} en archivo de características')
+                raise ValueError(f'Falta campo {campo} en archivo de caracterÃ­sticas')
     if str(origen['escenario']) == str(destino['escenario']):
-        raise ValueError('La evaluación cross-environment requiere ambientes diferentes')
+        raise ValueError('La evaluaciÃ³n cross-environment requiere ambientes diferentes')
     if str(origen['receptor']) != str(destino['receptor']):
         raise ValueError('Mantener receptor consistente entre ambientes')
     if not np.isfinite(origen['X']).all() or not np.isfinite(destino['X']).all():
-        raise ValueError('Características con NaN o Inf')
+        raise ValueError('CaracterÃ­sticas con NaN o Inf')
     if origen['X'].shape[1] != destino['X'].shape[1]:
-        raise ValueError('Dimensiones de características incompatibles')
+        raise ValueError('Dimensiones de caracterÃ­sticas incompatibles')
     if set(origen['y']) != set(CLASES) or set(destino['y']) != set(CLASES):
         raise ValueError('Faltan clases A,B,C,G,K')
     escala, modelo = entrenar_base(origen['X'], origen['y'], semilla)
     soporte, indice_consulta = dividir_soporte_consulta(destino['y'], destino['orden'])
     sal = Path(salida)
     sal.mkdir(parents=True, exist_ok=True)
+    if (sal / 'protocolo.json').exists():
+        archivo = sal / 'historial' / uuid.uuid4().hex
+        archivo.mkdir(parents=True)
+        for anterior in sal.iterdir():
+            if anterior.is_file():
+                shutil.copy2(anterior, archivo / anterior.name)
+    joblib.dump({'escalador': escala, 'modelo_base': modelo}, sal / 'modelo_base.joblib')
     Xq = destino['X'][indice_consulta]
     yq = destino['y'][indice_consulta]
     datos_metricas = []
@@ -57,7 +71,7 @@ def ejecutar_experimento(origen, destino, salida, semilla=42, shots=SHOT_VALUES,
     permutaciones = {c: rng.permutation(indices).tolist() for c, indices in soporte.items()}
     for k in shots:
         if k not in SHOT_VALUES:
-            raise ValueError(f'Shot inválido: {k}')
+            raise ValueError(f'Shot invÃ¡lido: {k}')
         if k:
             indices = [i for c in CLASES for i in permutaciones[c][:k]]
             yp = prediccion_fewshot(escala, modelo, Xq, destino['X'][indices], destino['y'][indices])
@@ -73,13 +87,21 @@ def ejecutar_experimento(origen, destino, salida, semilla=42, shots=SHOT_VALUES,
             'muestras_soporte': len(indices), 'muestras_consulta': len(yq)
         }
         datos_metricas.append(fila)
+        with (sal / f'predicciones_{k}shot.csv').open('w', newline='', encoding='utf-8') as f:
+            writer = csv.writer(f)
+            writer.writerow(['indice_consulta', 'actividad_real', 'prediccion'])
+            writer.writerows(zip(indice_consulta.tolist(), yq.tolist(), yp.tolist()))
         matriz = confusion_matrix(yq, yp, labels=CLASES)
         np.savetxt(sal / f'confusion_{k}shot.csv', matriz, delimiter=',', fmt='%d')
     with (sal / 'metricas.csv').open('w', newline='', encoding='utf-8') as f:
         writer = csv.DictWriter(f, fieldnames=list(datos_metricas[0]))
         writer.writeheader()
         writer.writerows(datos_metricas)
-    metadatos = {'naturaleza': etiqueta, 'ambiente_origen': str(origen['escenario']),
+    metadatos = {'id_ejecucion': uuid.uuid4().hex, 'fecha_utc': datetime.now(timezone.utc).isoformat(),
+                 'versiones': {'python': platform.python_version(), 'numpy': np.__version__, 'sklearn': sklearn.__version__},
+                 'sha256_caracteristicas': {n: hashlib.sha256(np.ascontiguousarray(d['X']).tobytes()).hexdigest() for n, d in [('origen', origen), ('destino', destino)]},
+                 'sha256_modelo': hashlib.sha256((sal / 'modelo_base.joblib').read_bytes()).hexdigest(),
+                 'naturaleza': etiqueta, 'ambiente_origen': str(origen['escenario']),
                  'ambiente_destino': str(destino['escenario']),
                  'receptor': str(destino['receptor']), 'semilla': semilla,
                  'clases': list(CLASES), 'consultas_compartidas': True,

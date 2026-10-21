@@ -56,3 +56,16 @@ class SeguridadTest(TestCase):
         self.assertEqual(self.client.get(reverse('ejecutar_real',args=[self.exp.pk])).status_code,405)
         self.client.post(reverse('ejecutar_real',args=[self.exp.pk]))
         self.assertEqual(self.exp.resultados.count(),0)
+
+    def test_graficos_y_autorizacion(self):
+        self.client.force_login(self.a)
+        self.client.post(reverse('demo',args=[self.exp.pk]))
+        url=reverse('grafico',args=[self.exp.pk])
+        for query in ('', '?tipo=confusion&k=0', '?tipo=confusion&k=10'):
+            response=self.client.get(url+query)
+            self.assertEqual(response.status_code,200)
+            self.assertIn('image/svg+xml',response['Content-Type'])
+            self.assertIn(b'<svg',response.content)
+        self.assertEqual(self.client.get(url+'?tipo=confusion&k=2').status_code,404)
+        self.client.force_login(self.b)
+        self.assertEqual(self.client.get(url).status_code,404)

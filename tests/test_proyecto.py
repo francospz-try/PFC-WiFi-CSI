@@ -64,7 +64,7 @@ def test_rechaza_mismo_ambiente(tmp_path):
 
 
 def test_preparacion_desde_mat_simulado(tmp_path):
-    """Prueba integración MAT->NPZ. No son señales experimentales reales."""
+    """Prueba integraciÃ³n MAT->NPZ. No son seÃ±ales experimentales reales."""
     from src.pfc07.procesamiento import preparar_escenario
     rng = np.random.default_rng(4)
     for escenario in ('S5', 'S7'):
@@ -83,3 +83,18 @@ def test_preparacion_desde_mat_simulado(tmp_path):
     filas = ejecutar_experimento(origen, destino, tmp_path / 'salida',
                                 etiqueta='TEST_MAT_SINTETICO_NO_CSI_REAL')
     assert len(filas) == 4
+
+
+def test_modelo_predicciones_y_archivo_repeticion(tmp_path):
+    generar_ejemplo(tmp_path / 'datos', n_por_clase=35)
+    origen = leer_features(tmp_path / 'datos' / 'S5_SINTETICO.npz')
+    destino = leer_features(tmp_path / 'datos' / 'S7_SINTETICO.npz')
+    salida = tmp_path / 'resultado'
+    ejecutar_experimento(origen, destino, salida, etiqueta='SINTETICO_TEST')
+    assert (salida / 'modelo_base.joblib').is_file()
+    assert (salida / 'predicciones_10shot.csv').is_file()
+    primero = json.loads((salida / 'protocolo.json').read_text())
+    ejecutar_experimento(origen, destino, salida, etiqueta='SINTETICO_TEST')
+    segundo = json.loads((salida / 'protocolo.json').read_text())
+    assert primero['id_ejecucion'] != segundo['id_ejecucion']
+    assert len(list((salida / 'historial').glob('*/protocolo.json'))) == 1
