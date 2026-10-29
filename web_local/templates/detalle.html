@@ -1,38 +1,38 @@
 {% extends 'base.html' %}
 {% block content %}
-<div class="pfc-heading"><div><h1>{{ exp.nombre }}</h1><p>Detalle del experimento y evaluaciÃ³n.</p></div><a class="pfc-edit" href="{% url 'experimentos' %}">Volver al historial</a></div><section class="pfc-card">
-<p>Origen {{ exp.origen.escenario }} Â· Destino {{ exp.destino.escenario }} Â· Semilla {{ exp.semilla }}</p>
-<p><b>Estado:</b> {{ exp.estado }} Â· <b>Naturaleza:</b> {{ exp.naturaleza }}</p>
+<div class="pfc-heading"><div><h1>{{ exp.nombre }}</h1><p>Detalle del experimento y evaluación.</p></div><a class="pfc-edit" href="{% url 'experimentos' %}">Volver al historial</a></div><section class="pfc-card">
+<p>Origen {{ exp.origen.escenario }} · Destino {{ exp.destino.escenario }} · Semilla {{ exp.semilla }}</p>
+<p><b>Estado:</b> {{ exp.estado }} · <b>Naturaleza:</b> {{ exp.naturaleza }}</p>
 {% if exp.naturaleza == 'CSI_REAL_BASELINE_EXPLORATORIO' %}
-<p class="explicacion">Estos resultados se calcularon con <b>mediciones CSI reales</b>. Son una evaluaciÃ³n exploratoria.</p>
+<p class="explicacion">Estos resultados se calcularon con <b>mediciones CSI reales</b>. Son una evaluación exploratoria.</p>
 {% elif exp.naturaleza == 'SINTETICO_PRUEBA_SOFTWARE' %}
-<p class="alert">Estos resultados son <b>sintÃ©ticos</b>: comprueban el software y no el reconocimiento con seÃ±ales Wi-Fi reales.</p>
+<p class="alert">Estos resultados son <b>sintéticos</b>: comprueban el software y no el reconocimiento con señales Wi-Fi reales.</p>
 {% endif %}
-<p>El modelo aprende las cinco actividades en el ambiente origen y se evalÃºa en el destino. Compara su predicciÃ³n con la actividad etiquetada de cada ventana de seÃ±al.</p>
+<p>El modelo aprende las cinco actividades en el ambiente origen y se evalúa en el destino. Compara su predicción con la actividad etiquetada de cada ventana de señal.</p>
 </section><div class="acciones">
 {% if exp.origen.revisado and exp.destino.revisado %}
 <form method="post" action="{% url 'ejecutar_real' exp.pk %}">{% csrf_token %}
 <p><b>Evaluar las mediciones seleccionadas</b><br><small>Usa los datasets reales de origen y destino.</small></p>
-<button>Ejecutar CSI real Â· 0/1/5/10-shot</button></form>
+<button>Ejecutar CSI real · 0/1/5/10-shot</button></form>
 {% endif %}
 <form method="post" action="{% url 'demo' exp.pk %}">{% csrf_token %}
-<p><b>Probar con datos artificiales</b><br><small>Genera una demo S5 â†’ S7; reemplaza la tabla por resultados sintÃ©ticos.</small></p>
-<button class="secundario">Ejecutar DEMO sintÃ©tica</button></form>
+<p><b>Probar con datos artificiales</b><br><small>Genera una demo S5 → S7; reemplaza la tabla por resultados sintéticos.</small></p>
+<button class="secundario">Ejecutar DEMO sintética</button></form>
 </div>
-<section class="pfc-card"><h2>MÃ©tricas</h2>
+<section class="pfc-card"><h2>Métricas</h2>
 <p>Valores entre 0 y 1: por ejemplo, 0,208 equivale a 20,8 %. Cuanto mayor, mejor.</p>
-<div class="table-scroll"><table><tr><th>k Â· ejemplos por clase</th><th>Exactitud (Accuracy)</th><th>PrecisiÃ³n macro</th><th>Recall macro</th><th>F1 macro</th></tr>
-{% for r in resultados %}<tr><td>{{r.k}}</td><td>{{r.accuracy|floatformat:3}}</td><td>{{r.precision_macro|floatformat:3}}</td><td>{{r.recall_macro|floatformat:3}}</td><td>{{r.f1_macro|floatformat:3}}</td></tr>{% empty %}<tr><td colspan="5">TodavÃ­a no hay resultados</td></tr>{% endfor %}</table></div>
+<div class="table-scroll"><table><tr><th>k · ejemplos por clase</th><th>Exactitud (Accuracy)</th><th>Precisión macro</th><th>Recall macro</th><th>F1 macro</th></tr>
+{% for r in resultados %}<tr><td>{{r.k}}</td><td>{{r.accuracy|floatformat:3}}</td><td>{{r.precision_macro|floatformat:3}}</td><td>{{r.recall_macro|floatformat:3}}</td><td>{{r.f1_macro|floatformat:3}}</td></tr>{% empty %}<tr><td colspan="5">Todavía no hay resultados</td></tr>{% endfor %}</table></div>
 <p><a href="{% url 'exportar' exp.pk %}">Exportar CSV etiquetado</a></p>
 </section>{% if resultados %}<section class="pfc-card" style="margin-top:24px"><h2>Comparación gráfica</h2><p class="pfc-muted">Las cuatro métricas se comparan con la misma consulta. La escala completa evita exagerar diferencias pequeñas.</p><img style="display:block;width:100%;height:auto" src="{% url 'grafico' exp.pk %}" alt="Comparación de exactitud, precisión, recall y F1 para 0, 1, 5 y 10 ejemplos por clase"><a class="pfc-edit" href="{% url 'grafico' exp.pk %}?descargar=1">Descargar gráfico SVG</a></section>
 <section class="pfc-card" style="margin-top:24px"><h2>Matrices de confusión</h2><p>Filas: actividad real. Columnas: predicción. La diagonal contiene los aciertos; las otras celdas muestran confusiones.</p><div class="matrices-grid">{% for k in matrices %}<figure><img style="width:100%;height:auto" src="{% url 'grafico' exp.pk %}?tipo=confusion&amp;k={{ k }}" alt="Matriz de confusión de {{ k }} ejemplos por clase"><figcaption><a href="{% url 'grafico' exp.pk %}?tipo=confusion&amp;k={{ k }}&amp;descargar=1">Descargar matriz {{ k }}-shot</a></figcaption></figure>{% empty %}<p>Las matrices aparecerán al volver a ejecutar este experimento.</p>{% endfor %}</div></section>{% endif %}
-<details class="explicacion"><summary>Â¿QuÃ© significa cada valor y la semilla?</summary><dl>
-<dt>Semilla</dt><dd>NÃºmero que fija las decisiones aleatorias para repetir el experimento. AquÃ­ determina la selecciÃ³n de ejemplos de soporte y se pasa al entrenamiento. No es una nota ni la cantidad de datos. Repetirla con los mismos datos, configuraciÃ³n y entorno permite reproducir la selecciÃ³n.</dd>
-<dt>k</dt><dd>Ejemplos etiquetados del destino usados por cada actividad para adaptar la predicciÃ³n. k=0: sin adaptaciÃ³n; k=1, 5 y 10: con pocos ejemplos. Con cinco actividades, k=5 usa 25 ejemplos en total. La consulta permanece igual y sus ejemplos no se usan como soporte.</dd>
+<details class="explicacion"><summary>¿Qué significa cada valor y la semilla?</summary><dl>
+<dt>Semilla</dt><dd>Número que fija las decisiones aleatorias para repetir el experimento. Aquí determina la selección de ejemplos de soporte y se pasa al entrenamiento. No es una nota ni la cantidad de datos. Repetirla con los mismos datos, configuración y entorno permite reproducir la selección.</dd>
+<dt>k</dt><dd>Ejemplos etiquetados del destino usados por cada actividad para adaptar la predicción. k=0: sin adaptación; k=1, 5 y 10: con pocos ejemplos. Con cinco actividades, k=5 usa 25 ejemplos en total. La consulta permanece igual y sus ejemplos no se usan como soporte.</dd>
 <dt>Exactitud (Accuracy)</dt><dd>Predicciones correctas divididas entre todas las predicciones.</dd>
-<dt>PrecisiÃ³n macro</dt><dd>Para cada actividad: de las veces que el modelo dijo esa actividad, cuÃ¡ntas fueron correctas. Se promedian las cinco clases con el mismo peso.</dd>
-<dt>Recall macro</dt><dd>Para cada actividad: de los ejemplos que realmente pertenecÃ­an a ella, cuÃ¡ntos detectÃ³ el modelo. Se promedian las cinco clases con el mismo peso.</dd>
-<dt>F1 macro</dt><dd>Combina precisiÃ³n y recall con su media armÃ³nica para cada actividad y luego promedia las cinco clases.</dd>
+<dt>Precisión macro</dt><dd>Para cada actividad: de las veces que el modelo dijo esa actividad, cuántas fueron correctas. Se promedian las cinco clases con el mismo peso.</dd>
+<dt>Recall macro</dt><dd>Para cada actividad: de los ejemplos que realmente pertenecían a ella, cuántos detectó el modelo. Se promedian las cinco clases con el mismo peso.</dd>
+<dt>F1 macro</dt><dd>Combina precisión y recall con su media armónica para cada actividad y luego promedia las cinco clases.</dd>
 </dl></details>
-<p><small>CSI real: baseline exploratorio por bloques temporales de una grabaciÃ³n por clase. No equivale a validaciÃ³n con sesiones independientes.</small></p>
+<p><small>CSI real: baseline exploratorio por bloques temporales de una grabación por clase. No equivale a validación con sesiones independientes.</small></p>
 {% endblock %}

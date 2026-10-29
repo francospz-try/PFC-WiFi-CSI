@@ -1,4 +1,4 @@
-"""ConfiguraciÃ³n local. La clave privada SOLO va por variable de entorno."""
+"""Configuración local. La clave privada SOLO va por variable de entorno."""
 from pathlib import Path
 import os
 BASE_DIR=Path(__file__).resolve().parent.parent
