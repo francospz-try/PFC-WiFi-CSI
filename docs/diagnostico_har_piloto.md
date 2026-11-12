@@ -276,3 +276,7 @@ Inventario: `outputs/feria_2026/inventario_evidencias.json`, con fuente real, fe
 Para demostrar sin hardware: desde el proyecto ejecutar `.venv\Scripts\python.exe outputs\feria_2026\demostracion\servidor_evidencia.py` y abrir http://127.0.0.1:8766/. Usa SQLite temporal y alias de exposición; bloquea entrenamiento/captura. Mostrar las dos sesiones reservadas y comprobar su identificador y el hash del modelo. Cerrar con Ctrl+C. No exponer esa instancia a la red.
 
 Estado para la feria: listo con limitaciones para mostrar adquisición histórica, inspección CSI y clasificación de grabaciones. Fotografías físicas pendientes. Reconocimiento en vivo, generalización y Few-Shot propio permanecen pendientes. El operador debe aportar vista general, TX, RX, ubicación/alturas/distancia y trayectoria; no se fabricaron fotografías.
+
+## Revalidación del paquete de feria
+
+La solicitud adicional repetida se contrastó con los entregables existentes: 34 evidencias y los 20 archivos originales conservaron sus hashes. No se repitieron capturas ni se alteró el modelo. Se completaron las figuras de evaluación con precision, recall y F1 por clase y macro, y la comparación CSI con leyenda y unidades arbitrarias explícitas. Se regeneraron únicamente figuras derivadas y su inventario. Las fotografías físicas y el video siguen pendientes; la demostración recomendada utiliza grabaciones reales.
