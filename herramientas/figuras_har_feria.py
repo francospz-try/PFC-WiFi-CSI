@@ -22,6 +22,10 @@ def main():
     report=json.loads((ROOT/'outputs/csi_reconocimiento/binario.json').read_text(encoding='utf-8'))
     sessions=report['sessions']
     fig,_=comparar(ROOT/'datos_locales/csi_piloto'/sessions[0],ROOT/'datos_locales/csi_piloto'/sessions[1])
+    for i,ax in enumerate(fig.axes):
+        ax.lines[0].set_label('Quietud' if i % 2 == 0 else 'Caminar')
+        ax.legend(loc='upper right',fontsize=8)
+    fig.text(.5,-.025,'Amplitud I/Q en unidades arbitrarias; transformación log(1 + amplitud). Variabilidad: desviación estándar temporal.',ha='center',fontsize=9)
     save(fig,'A_senales_csi')
     quality=audit['quality']; names=[('Q' if q['label']=='quietud' else 'C')+str(i+1) for i,q in enumerate(quality)]
     names=[q['session'].split('T')[1][:6]+'\n'+q['label'] for q in quality]
@@ -40,7 +44,12 @@ def main():
             for j in range(2): ax.text(j,i,str(m[i,j]),ha='center',va='center',fontsize=30,color='white' if m[i,j]>35 else '#17324d')
         ax.set_xticks([0,1],['Quietud','Caminar']);ax.set_yticks([0,1],['Quietud','Caminar']);ax.set_xlabel('Clase predicha');ax.set_ylabel('Actividad declarada')
         stats=audit[key]; fig.suptitle(title+'\nAccuracy '+f"{stats['accuracy']*100:.2f}%"+' · F1 macro '+f"{stats['macro_f1']:.4f}",fontsize=12)
-        fig.text(.5,-.03,'Conteos por ventanas de 1 s, temporalmente correlacionadas. No validación poblacional.',ha='center',fontsize=9)
+        metric_lines=['Clase: precision / recall / F1']
+        for cls in audit['classes']:
+            metric_lines.append(f"{cls}: {stats['precision'][cls]:.4f} / {stats['recall'][cls]:.4f} / {stats['f1'][cls]:.4f}")
+        metric_lines.append(f"macro: {np.mean(list(stats['precision'].values())):.4f} / {np.mean(list(stats['recall'].values())):.4f} / {stats['macro_f1']:.4f}")
+        fig.text(.5,-.03,'\n'.join(metric_lines),ha='center',va='top',fontsize=10)
+        fig.text(.5,-.18,'Conteos por ventanas de 1 s, temporalmente correlacionadas. No validación poblacional.',ha='center',fontsize=9)
         save(fig,name)
     tests=audit['reserved_final']['sessions'];fig=Figure(figsize=(9,5),layout='constrained');ax=fig.subplots();left=np.zeros(len(tests))
     for cls,color in [('quietud','#237b9c'),('caminar','#c76e25')]:
