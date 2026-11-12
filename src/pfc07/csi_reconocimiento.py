@@ -1,6 +1,9 @@
 """Prototipos exploratorios. Validacion por grabacion completa, nunca por ventanas aleatorias."""
+import hashlib
+from io import BytesIO
 import json
 from pathlib import Path
+from datetime import datetime, timezone
 import numpy as np
 from .csi_piloto import leer_captura
 
@@ -53,6 +56,10 @@ def train(root,out,mode,dataset):
         if not (folder/'metadata.json').exists(): continue
         meta=json.loads((folder/'metadata.json').read_text(encoding='utf-8'))
         if meta.get('dataset','piloto_inicial') != dataset: continue
+        # Legacy sessions without a purpose retain their original label semantics.
+        if meta.get('capture_use') in ('reconocer','enlace'):
+            excluded.append(dict(session=folder.name,reason='Reservada por uso: '+meta['capture_use']))
+            continue
         label=actividad(meta,mode)
         if not label: continue
         try:
@@ -64,7 +71,7 @@ def train(root,out,mode,dataset):
         raise ValueError('Faltan grabaciones utilizables por clase: '+str(counts)+'. Descartadas: '+str(excluded))
     rooms={r['meta'].get('room') for r in records}
     if len(rooms)!=1: raise ValueError('El piloto requiere un solo ambiente por dataset; separa las campañas.')
-    report=dict(mode=mode,dataset=dataset,classes=list(classes),sessions=[r['name'] for r in records],
+    report=dict(trained_at_utc=datetime.now(timezone.utc).isoformat(),mode=mode,dataset=dataset,classes=list(classes),sessions=[r['name'] for r in records],
                 counts=counts,excluded=excluded,room=next(iter(rooms)),evaluation=None,
                 method='Prototipos de seis indicadores temporales; sin probabilidades calibradas.',
                 quality_rules='>=60Hz, <=10% saltos; ventanas >=60 muestras, hueco <=100ms; excluir 2s iniciales y finales.',
@@ -94,8 +101,12 @@ def predict(folder,out,mode):
     meta,x=features(folder)
     if meta.get('room')!=report['room']: raise ValueError('El ambiente es diferente al de calibracion; esta prueba local no valida transferencia.')
     if meta.get('dataset','piloto_inicial')!=report['dataset']: raise ValueError('Selecciona una captura del mismo dataset del modelo.')
-    with np.load(out/(mode+'.npz'),allow_pickle=False) as z: model=tuple(z[k] for k in ['mean','scale','centers'])
+    model_bytes=(out/(mode+'.npz')).read_bytes()
+    with np.load(BytesIO(model_bytes),allow_pickle=False) as z: model=tuple(z[k] for k in ['mean','scale','centers'])
     pred=infer(x,model,report['classes'])
     proportions={c:float(100*np.mean(pred==c)) for c in report['classes']}
-    return dict(session=Path(folder).name,result=max(proportions,key=proportions.get),percentages=proportions,
+    return dict(model_mode=mode,model_dataset=report['dataset'],model_trained_at_utc=report.get('trained_at_utc'),
+                model_sha256=hashlib.sha256(model_bytes).hexdigest(),
+                declared_activity=meta.get('declared_activity',meta.get('label','Sin declaracion')),
+                session=Path(folder).name,result=max(proportions,key=proportions.get),percentages=proportions,
                 windows=len(pred),note='Porcentaje de ventanas asignadas por el modelo, no confianza ni exactitud. Puede confundir otros movimientos con las clases conocidas.')

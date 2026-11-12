@@ -26,8 +26,8 @@ def session(name):
     return p
 
 class CaptureForm(forms.Form):
-    activity=forms.ChoiceField(label='Actividad que realizaras',choices=[('de_pie','Persona quieta de pie'),('sentado','Persona quieta sentada'),('caminar','Persona caminando por un recorrido lateral'),('no_controlada','Actividad no controlada / solo comprobar enlace')],help_text='Es tu anotacion de lo que haras; no una prediccion del sistema. Mantén la misma actividad durante toda la grabacion.')
-    capture_use=forms.ChoiceField(label='Uso de esta captura',choices=[('aprender','Enseñar al modelo con actividad etiquetada'),('reconocer','Probar reconocimiento con una grabacion nueva'),('enlace','Comprobar recepcion, sin etiqueta de actividad')],help_text='Las pruebas de reconocimiento se reservan: no se usan para enseñar al modelo.')
+    activity=forms.ChoiceField(label='Actividad que realizaras',choices=[('','Selecciona la actividad'),('de_pie','Persona quieta de pie'),('sentado','Persona quieta sentada'),('caminar','Persona caminando por un recorrido lateral'),('no_controlada','Actividad no controlada / solo comprobar enlace')],help_text='Es tu anotacion de lo que haras; no una prediccion del sistema. Mantén la misma actividad durante toda la grabacion.')
+    capture_use=forms.ChoiceField(label='Uso de esta captura',choices=[('','Selecciona el uso'),('aprender','Enseñar al modelo con actividad etiquetada'),('reconocer','Probar reconocimiento con una grabacion nueva'),('enlace','Comprobar recepcion, sin etiqueta de actividad')],help_text='Las pruebas de reconocimiento se reservan: no se usan para enseñar al modelo.')
     dataset=forms.CharField(label='Dataset propio',initial='casa_habitacion',max_length=80,help_text='Usa el mismo nombre para agrupar las grabaciones de tu campaña.')
     room=forms.CharField(label='Ambiente',initial='habitacion',max_length=80)
     seconds=forms.IntegerField(label='Duracion (segundos)',initial=60,min_value=5,max_value=60)
@@ -64,7 +64,19 @@ def panel(request):
             from src.pfc07.csi_piloto import comparar
             fig,summary=comparar(session(a),session(b));fig.clear()
         except (ValueError,OSError,KeyError,Http404): pass
-    return render(request,'csi_piloto.html',dict(sessions=sessions,errors=errors,form=CaptureForm(),a=a,b=b,summary=summary))
+    initial={}
+    if sessions:
+        latest=sessions[0]
+        for field,key in [('dataset','dataset'),('room','room'),('seconds','seconds'),('distance','distance_m'),('tx_height','height_tx_m'),('rx_height','height_rx_m')]:
+            if latest.get(key) is not None: initial[field]=latest[key]
+    groups={}
+    for item in sessions:
+        dataset=item.get('dataset','piloto_inicial')
+        group=groups.setdefault(dataset,dict(dataset=dataset,total=0,aprender=0,reconocer=0,enlace=0,legacy=0))
+        group['total']+=1
+        purpose=item.get('capture_use')
+        group[purpose if purpose in ('aprender','reconocer','enlace') else 'legacy']+=1
+    return render(request,'csi_piloto.html',dict(sessions=sessions,errors=errors,form=CaptureForm(initial=initial),a=a,b=b,summary=summary,dataset_summary=[groups[k] for k in sorted(groups)]))
 
 @staff_member_required(login_url='login')
 def graph(request):
