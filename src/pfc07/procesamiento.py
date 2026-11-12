@@ -100,4 +100,38 @@ def leer_features(ruta):
         campos = ('X', 'y', 'grupo', 'orden', 'escenario', 'receptor')
         if any(k not in z for k in campos):
             raise ValueError(f'Archivo NPZ incompleto: esperado {campos}')
-        return {k: z[k].copy() for k in campos}
+        datos = {k: z[k].copy() for k in z.files}
+    validar_features(datos)
+    return datos
+
+
+def validar_features(datos):
+    """Valida el contrato antes de entrenar o escribir resultados."""
+    for campo in ('X', 'y', 'grupo', 'orden', 'escenario', 'receptor'):
+        if campo not in datos:
+            raise ValueError(f'Falta campo {campo}')
+    X = np.asarray(datos['X'])
+    if X.ndim != 2 or not all(X.shape) or X.dtype.kind not in 'fiu':
+        raise ValueError('X debe ser una matriz numérica real 2D no vacía')
+    if not np.isfinite(X).all():
+        raise ValueError('Características con NaN o Inf')
+    for campo in ('y', 'grupo', 'orden'):
+        v = np.asarray(datos[campo])
+        if v.ndim != 1 or len(v) != len(X):
+            raise ValueError(f'{campo} debe ser un vector con una entrada por muestra')
+    if set(datos['y']) != set(CLASES):
+        raise ValueError('Se requieren exactamente las clases A,B,C,G,K')
+    orden = np.asarray(datos['orden'])
+    if orden.dtype.kind not in 'iu' or np.any(orden < 0):
+        raise ValueError('orden debe contener enteros no negativos')
+    for campo, permitidos in [('escenario', ('S5','S6','S7')), ('receptor', ('a','b','c'))]:
+        v = np.asarray(datos[campo])
+        if v.ndim != 0 or str(v) not in permitidos:
+            raise ValueError(f'{campo} inválido')
+    # El protocolo actual admite una grabación por clase; no mezclar sesiones.
+    for clase in CLASES:
+        idx = np.asarray(datos['y']) == clase
+        if len(np.unique(np.asarray(datos['grupo'])[idx])) != 1:
+            raise ValueError('El protocolo requiere una grabación por clase')
+        if len(np.unique(orden[idx])) != int(idx.sum()):
+            raise ValueError('orden contiene duplicados dentro de una clase')

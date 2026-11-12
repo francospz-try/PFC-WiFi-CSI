@@ -1,0 +1,6 @@
+{
+  "tx_app_main.c": "9c571e123d17aca70a6fab2d74079b1a4b36d13c24c0744801d67cfa42f70599",
+  "tx_sdkconfig": "4423baf5da2ccbe765382d924c8cc3cf403534665021960e7a25ec3e395e508f",
+  "rx_app_main.c": "54a855c8dc2c7e7199f67f430daffaee369517a0d12bc3d03d60bbc6fc7e80b0",
+  "rx_sdkconfig": "af96b23fb8ed48e30b2a42c1eec160680231cd2eb1c02a89803eb37fe9ad1790"
+}

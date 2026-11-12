@@ -2,7 +2,7 @@
 <a href="{% url 'dashboard' %}" {% if request.resolver_match.url_name == 'dashboard' %}class="active" aria-current="page"{% endif %}>Dashboard</a>
 <a href="{% url 'datasets' %}" {% if request.resolver_match.url_name == 'datasets' %}class="active" aria-current="page"{% endif %}>Datasets</a>
 <a href="{% url 'experimentos' %}" {% if '/experimentos/' in request.path %}class="active" aria-current="page"{% endif %}>Experimentos y resultados</a>
-{% if user.is_staff %}<p class="pfc-label">Administración</p><a href="{% url 'admin:index' %}" {% if request.path == '/admin/' %}class="active" aria-current="page"{% endif %}>Resumen</a>
+{% if user.is_staff %}<a href="{% url 'avance_panel' %}">Demostracion del avance</a><a href="{% url 'csi_panel' %}">Captura ESP32</a><p class="pfc-label">Administración</p><a href="{% url 'admin:index' %}" {% if request.path == '/admin/' %}class="active" aria-current="page"{% endif %}>Resumen</a>
 {% if perms.auth.view_user %}<a href="{% url 'admin:auth_user_changelist' %}" {% if '/auth/user/' in request.path %}class="active" aria-current="page"{% endif %}>Usuarios</a>{% endif %}
 {% if perms.auth.view_group %}<a href="{% url 'admin:auth_group_changelist' %}">Grupos y permisos</a>{% endif %}
 {% if perms.portal.view_dataset %}<a href="{% url 'admin:portal_dataset_changelist' %}">Catálogo de datasets</a>{% endif %}

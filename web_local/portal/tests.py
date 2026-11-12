@@ -1,10 +1,20 @@
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
+from pathlib import Path
+from tempfile import TemporaryDirectory
+from django.test import override_settings
 from .models import Dataset,Experimento
 U=get_user_model()
 class SeguridadTest(TestCase):
     def setUp(self):
+        temporal = TemporaryDirectory(prefix='pfc_web_test_')
+        self.addCleanup(temporal.cleanup)
+        self.raiz_pruebas = Path(temporal.name)
+        ajuste = override_settings(OUTPUT_DIR=self.raiz_pruebas / 'outputs',
+                                   DATA_DIR=self.raiz_pruebas / 'datos')
+        ajuste.enable()
+        self.addCleanup(ajuste.disable)
         self.a=U.objects.create_user(username='investigador_a',password='MuySegura_A_2026!')
         self.b=U.objects.create_user(username='investigador_b',password='MuySegura_B_2026!')
         self.admin=U.objects.create_superuser(username='administrador',password='MuySegura_Admin_2026!',email='a@example.org')

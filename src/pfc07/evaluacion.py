@@ -13,6 +13,7 @@ import numpy as np
 from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score, confusion_matrix
 from .config import CLASES, SHOT_VALUES
 from .modelos import entrenar_base, prediccion_fewshot
+from .procesamiento import validar_features
 
 
 def dividir_soporte_consulta(y, orden, clases=CLASES, max_shot=10, guardia=4,
@@ -39,7 +40,13 @@ def dividir_soporte_consulta(y, orden, clases=CLASES, max_shot=10, guardia=4,
 def ejecutar_experimento(origen, destino, salida, semilla=42, shots=SHOT_VALUES,
                            etiqueta='DATOS_REALES_NO_AUDITADOS'):
     """Realiza evaluaciÃ³n verificando separaciÃ³n de ambientes y coincidencia de clases."""
+    shots = tuple(shots)
+    if not shots or len(set(shots)) != len(shots) or any(k not in SHOT_VALUES for k in shots):
+        raise ValueError('shots debe ser una selección no vacía, sin duplicados, de 0/1/5/10')
+    if not isinstance(semilla, (int, np.integer)) or not 0 <= semilla < 2**32:
+        raise ValueError('semilla debe ser un entero entre 0 y 2**32 - 1')
     for datos in (origen, destino):
+        validar_features(datos)
         for campo in ('X', 'y', 'orden', 'escenario', 'receptor'):
             if campo not in datos:
                 raise ValueError(f'Falta campo {campo} en archivo de caracterÃ­sticas')
