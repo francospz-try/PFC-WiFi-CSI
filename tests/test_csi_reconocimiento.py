@@ -39,3 +39,57 @@ class RecognitionTest(TestCase):
         with self.assertRaises(ValueError): features(p)
         self.record('walk','caminar')
         with self.assertRaises(ValueError): train(self.root,self.out,'posturas','prueba')
+
+    def test_recognition_and_link_captures_never_teach_even_if_labeled(self):
+        self.record('a','quieto');self.record('b','caminar')
+        for name,use in [('reserved','reconocer'),('link','enlace')]:
+            p=self.record(name,'caminar')
+            meta=json.loads((p/'metadata.json').read_text());meta['capture_use']=use
+            (p/'metadata.json').write_text(json.dumps(meta))
+        report=train(self.root,self.out,'binario','prueba')
+        self.assertEqual(report['sessions'],['a','b'])
+        self.assertIsNone(report['evaluation'])
+
+    def test_prediction_identifies_model_and_declared_activity(self):
+        import hashlib
+        self.record('a','quieto');self.record('b','caminar')
+        train(self.root,self.out,'binario','prueba')
+        p=self.record('fresh','sin_etiquetar')
+        meta=json.loads((p/'metadata.json').read_text());meta['declared_activity']='sentado'
+        (p/'metadata.json').write_text(json.dumps(meta))
+        result=predict(p,self.out,'binario')
+        self.assertEqual(result.get('model_dataset'),'prueba')
+        self.assertEqual(result.get('model_mode'),'binario')
+        self.assertEqual(result.get('model_sha256'),hashlib.sha256((self.out/'binario.npz').read_bytes()).hexdigest())
+        self.assertEqual(result.get('declared_activity'),'sentado')
+
+    def test_new_model_records_utc_training_time(self):
+        from datetime import datetime, timezone
+        self.record('a','quieto');self.record('b','caminar')
+        before=datetime.now(timezone.utc)
+        report=train(self.root,self.out,'binario','prueba')
+        self.assertIsNotNone(report.get('trained_at_utc'))
+        stamp=datetime.fromisoformat(report['trained_at_utc'])
+        self.assertIsNotNone(stamp.tzinfo)
+        self.assertGreaterEqual(stamp,before)
+        self.assertLessEqual(stamp,datetime.now(timezone.utc))
+
+    def test_prediction_hash_identifies_the_bytes_used_during_concurrent_replacement(self):
+        import hashlib
+        from unittest.mock import patch
+        from src.pfc07.csi_reconocimiento import infer
+        self.record('a','quieto');self.record('b','caminar')
+        train(self.root,self.out,'binario','prueba')
+        fresh=self.record('fresh','sin_etiquetar')
+        model_path=self.out/'binario.npz'
+        original_hash=hashlib.sha256(model_path.read_bytes()).hexdigest()
+        def replace_after_load(x,model,classes):
+            # Simulate another writer atomically replacing the file after loading.
+            replacement=self.out/'replacement.npz'
+            np.savez(replacement,mean=model[0]+1,scale=model[1],centers=model[2])
+            replacement.replace(model_path)
+            return infer(x,model,classes)
+        with patch('src.pfc07.csi_reconocimiento.infer',side_effect=replace_after_load):
+            result=predict(fresh,self.out,'binario')
+        self.assertNotEqual(hashlib.sha256(model_path.read_bytes()).hexdigest(),original_hash)
+        self.assertEqual(result['model_sha256'],original_hash)
