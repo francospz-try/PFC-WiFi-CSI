@@ -1,0 +1,5 @@
+# Licencias y atribuciones de terceros
+
+- **Firmware ESP32-C6.** Las copias TX/RX proceden de [Espressif ESP-CSI en la revisión utilizada](https://github.com/espressif/esp-csi/tree/8633d67152db2808f141cc1595970aa9cf406045). Las fuentes conservan sus avisos originales y el identificador SPDX Apache-2.0. Se incluye el [texto Apache 2.0](firmware/esp32c6/LICENSE-APACHE-2.0.txt). La configuración del proyecto y los pasos de reconstrucción se documentan en [CAPTURA_ESP32.md](CAPTURA_ESP32.md).
+- **Dataset externo.** Cominelli, Gringoli y Restuccia, *Exposing the CSI*, IEEE PerCom 2023. Consulta los [depósitos y sus condiciones](https://github.com/ansresearch/exposing-the-csi) al obtener los ZIP. El repositorio del producto distribuye el lector y las instrucciones de preparación.
+- **Dependencias Python.** Cada paquete listado en `requirements-lock.txt` y `requirements-captura.txt` conserva su propia licencia y avisos al instalarse desde su distribuidor. El listado de dependencias no cambia las condiciones de cada paquete.

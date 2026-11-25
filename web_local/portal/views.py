@@ -1,5 +1,6 @@
 """Portal con autorizaciones en servidor. Demo claramente SINTÉTICA."""
 import csv, hashlib
+from uuid import uuid4
 from pathlib import Path
 from django.views.generic import FormView
 from django.contrib.auth.views import LoginView
@@ -7,7 +8,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.shortcuts import render, redirect, get_object_or_404
 from django.core.cache import cache
-from django.http import HttpResponse, HttpResponseForbidden
+from django.http import Http404, HttpResponse, HttpResponseForbidden
 from django.conf import settings
 from django.views.decorators.http import require_POST
 from .models import Dataset, Experimento, Resultado
@@ -56,12 +57,39 @@ def nuevo_experimento(request):
         return redirect('detalle',pk=exp.pk)
     return render(request,'form.html',{'form':form})
 
+def carpeta_ejecucion_real(pk, id_ejecucion):
+    return settings.OUTPUT_DIR / f'experimento_{pk}_ejecuciones' / str(id_ejecucion)
+
+
+def carpeta_resultado_real(exp):
+    if exp.ajuste_id:
+        return carpeta_ejecucion_real(exp.pk, exp.ajuste_id) / 'combinacion_probabilidades'
+    return settings.OUTPUT_DIR / f'experimento_{exp.pk}_real'
+
+
+def carpeta_ajuste(exp):
+    if exp.naturaleza == 'CSI_REAL_BASELINE_EXPLORATORIO' and exp.ajuste_id:
+        return carpeta_ejecucion_real(exp.pk, exp.ajuste_id) / 'ajuste_convencional'
+    return None
+
+
+def filas_ajuste(carpeta):
+    if carpeta is None:
+        return []
+    try:
+        with (carpeta / 'metricas.csv').open(encoding='utf-8', newline='') as archivo:
+            return list(csv.DictReader(archivo))
+    except FileNotFoundError:
+        return []
+
+
 @login_required
 def detalle(request,pk):
     exp=get_object_or_404(visibles(request),pk=pk)
-    carpeta = settings.OUTPUT_DIR / f'experimento_{pk}_real' if exp.naturaleza == 'CSI_REAL_BASELINE_EXPLORATORIO' else settings.OUTPUT_DIR / f'experimento_{pk}_simulado' / 'resultados'
+    carpeta = carpeta_resultado_real(exp) if exp.naturaleza == 'CSI_REAL_BASELINE_EXPLORATORIO' else settings.OUTPUT_DIR / f'experimento_{pk}_simulado' / 'resultados'
     matrices = [k for k in (0, 1, 5, 10) if (carpeta / f'confusion_{k}shot.csv').is_file()]
-    return render(request,'detalle.html',{'exp':exp,'resultados':exp.resultados.order_by('k'), 'matrices': matrices})
+    return render(request,'detalle.html',{'exp':exp,'resultados':exp.resultados.order_by('k'), 'matrices': matrices,
+                                          'ajuste': filas_ajuste(carpeta_ajuste(exp))})
 
 @login_required
 @require_POST
@@ -89,6 +117,16 @@ def exportar(request,pk):
     resp=HttpResponse(content_type='text/csv')
     resp['Content-Disposition']=f'attachment; filename="experimento_{exp.pk}_resultados.csv"'
     w=csv.writer(resp)
+    if request.GET.get('metodo') == 'ajuste_convencional':
+        filas = filas_ajuste(carpeta_ajuste(exp))
+        if not filas:
+            raise Http404('El ajuste convencional no está disponible')
+        resp['Content-Disposition'] = f'attachment; filename="experimento_{exp.pk}_ajuste_convencional.csv"'
+        campos = ('shots_por_clase', 'accuracy', 'precision_macro', 'recall_macro', 'f1_macro')
+        w.writerow(['naturaleza', 'metodo', 'k', *campos[1:]])
+        for fila in filas:
+            w.writerow([exp.naturaleza, 'ajuste_convencional', *(fila[c] for c in campos)])
+        return resp
     w.writerow(['naturaleza','k','accuracy','precision_macro','recall_macro','f1_macro'])
     for r in exp.resultados.order_by('k'):
         w.writerow([exp.naturaleza,r.k,r.accuracy,r.precision_macro,r.recall_macro,r.f1_macro])
@@ -115,11 +153,24 @@ def ejecutar_real(request,pk):
             datos.append(d);metadatos.append(meta)
         for campo in ('antena','receptor','longitud_paquetes','salto_paquetes','bins'):
             if metadatos[0][campo]!=metadatos[1][campo]:raise ValueError('Preprocesamiento incompatible')
-        filas=ejecutar_experimento(*datos,settings.OUTPUT_DIR/f'experimento_{pk}_real',semilla=exp.semilla,etiqueta='CSI_REAL_BASELINE_EXPLORATORIO_BLOQUES_TEMPORALES')
+        etiqueta = 'CSI_REAL_BASELINE_EXPLORATORIO_BLOQUES_TEMPORALES'
+        ajuste_id = uuid4()
+        carpeta = carpeta_ejecucion_real(pk, ajuste_id)
+        ejecutar_experimento(
+            *datos, carpeta / 'ajuste_convencional',
+            semilla=exp.semilla, etiqueta=etiqueta, metodo='ajuste_convencional',
+        )
+        filas = ejecutar_experimento(
+            *datos, carpeta / 'combinacion_probabilidades',
+            semilla=exp.semilla, etiqueta=etiqueta,
+        )
         with transaction.atomic():
             for fila in filas:
                 Resultado.objects.update_or_create(experimento=exp,k=fila['shots_por_clase'],defaults={c:fila[c] for c in ('accuracy','precision_macro','recall_macro','f1_macro')})
-            exp.estado='REAL_COMPLETADO';exp.naturaleza='CSI_REAL_BASELINE_EXPLORATORIO';exp.save(update_fields=['estado','naturaleza'])
+            exp.estado = 'REAL_COMPLETADO'
+            exp.naturaleza = 'CSI_REAL_BASELINE_EXPLORATORIO'
+            exp.ajuste_id = ajuste_id
+            exp.save(update_fields=['estado', 'naturaleza', 'ajuste_id'])
         messages.success(request,'Evaluación real completada. Protocolo exploratorio por bloques temporales.')
     except (ValueError,OSError,KeyError) as exc:
         messages.error(request,f'No se pudo ejecutar: {exc}')
@@ -128,7 +179,6 @@ def ejecutar_real(request,pk):
 
 @login_required
 def grafico(request, pk):
-    from django.http import Http404
     import numpy as np
     from src.pfc07.graficos import figura_metricas, figura_confusion, exportar_figura
     exp = get_object_or_404(visibles(request), pk=pk)
@@ -145,8 +195,12 @@ def grafico(request, pk):
             raise Http404('Configuración inválida')
         if k not in (0, 1, 5, 10):
             raise Http404('Configuración inválida')
-        if exp.naturaleza == 'CSI_REAL_BASELINE_EXPLORATORIO':
-            carpeta = settings.OUTPUT_DIR / f'experimento_{pk}_real'
+        if request.GET.get('metodo') == 'ajuste_convencional':
+            carpeta = carpeta_ajuste(exp)
+            if carpeta is None:
+                raise Http404('El ajuste convencional no está disponible')
+        elif exp.naturaleza == 'CSI_REAL_BASELINE_EXPLORATORIO':
+            carpeta = carpeta_resultado_real(exp)
         elif exp.naturaleza == 'SINTETICO_PRUEBA_SOFTWARE':
             carpeta = settings.OUTPUT_DIR / f'experimento_{pk}_simulado' / 'resultados'
         else:

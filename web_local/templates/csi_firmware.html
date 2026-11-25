@@ -1,0 +1,9 @@
+{% extends 'base.html' %}{% block content %}<h1>Como funcionan los ESP32-C6</h1>
+<p><a href="{% url 'csi_panel' %}">Volver a capturas</a></p>
+<p><strong>TX → Wi-Fi / ESP-NOW → RX → USB → laptop.</strong> TX envia un contador nominalmente 100 veces por segundo. RX recibe los paquetes y el controlador Wi-Fi estima CSI a partir de las secuencias de entrenamiento. El programa imprime metadatos y componentes complejas. La laptop guarda, procesa y compara: las placas no ejecutan el clasificador.</p>
+<p>Ejemplo oficial ESP-CSI, commit 8633d67152db2808f141cc1595970aa9cf406045. ESP-IDF 5.5.6, objetivo esp32c6. Canal 11, HT40, protocolo 802.11n. Tener un C6 no implica que esta prueba use tramas Wi-Fi 6.</p>
+<p>Identifica el receptor por el puerto serie asignado al conectarlo por USB. Los puertos COM pueden cambiar al reconectar.</p>
+<p>Cambio local: consola principal del receptor configurada como USB Serial/JTAG. No se modifico el algoritmo del ejemplo. Los archivos siguientes son copias de los usados en la compilacion, no lecturas extraidas del firmware binario.</p>
+<p>CSI representa la respuesta combinada de propagacion; no entrega directamente angulos de rebote ni etiquetas de actividad. Los 256 valores serializados no equivalen a 256 subportadoras.</p>
+{% for name, source in code.items %}<h2>{{ name }}</h2><details><summary>Mostrar codigo C completo</summary><pre style="overflow:auto;max-height:650px;background:#f3f5f7;padding:20px"><code>{{ source }}</code></pre></details>{% endfor %}
+{% endblock %}

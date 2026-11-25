@@ -4,6 +4,7 @@ from django.core.validators import MinValueValidator, MaxValueValidator
 from django.core.exceptions import ValidationError
 
 class Dataset(models.Model):
+    id = models.BigAutoField(primary_key=True)
     nombre=models.CharField(max_length=120)
     escenario=models.CharField(max_length=2,choices=[(v,v) for v in ('S5','S6','S7')])
     receptor=models.CharField(max_length=1,choices=[(v,v) for v in 'abc'],default='a')
@@ -16,6 +17,7 @@ class Dataset(models.Model):
             raise ValidationError('Usa una ruta relativa NPZ dentro de datos_locales, sin ..')
 
 class Experimento(models.Model):
+    id = models.BigAutoField(primary_key=True)
     nombre=models.CharField(max_length=120)
     propietario=models.ForeignKey(settings.AUTH_USER_MODEL,on_delete=models.PROTECT,related_name='experimentos')
     origen=models.ForeignKey(Dataset,on_delete=models.PROTECT,related_name='experimentos_origen')
@@ -23,6 +25,7 @@ class Experimento(models.Model):
     semilla=models.PositiveIntegerField(default=42)
     estado=models.CharField(max_length=30,default='PENDIENTE')
     naturaleza=models.CharField(max_length=80,default='SIN_EJECUTAR')
+    ajuste_id = models.UUIDField(null=True, editable=False)
     creado=models.DateTimeField(auto_now_add=True)
     def clean(self):
         if self.origen_id and self.destino_id and self.origen.escenario == self.destino.escenario:
@@ -30,6 +33,7 @@ class Experimento(models.Model):
     def __str__(self):return self.nombre
 
 class Resultado(models.Model):
+    id = models.BigAutoField(primary_key=True)
     experimento=models.ForeignKey(Experimento,on_delete=models.CASCADE,related_name='resultados')
     k=models.PositiveSmallIntegerField(choices=[(k,str(k)) for k in (0,1,5,10)])
     accuracy=models.FloatField(validators=[MinValueValidator(0),MaxValueValidator(1)])

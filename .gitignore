@@ -14,3 +14,5 @@ datos_locales/
 
 .django-secret
 .pytest_cache/
+*.sqlite3-*
+*.joblib

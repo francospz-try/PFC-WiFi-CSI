@@ -19,13 +19,27 @@
 <p><b>Probar con datos artificiales</b><br><small>Genera una demo S5 → S7; reemplaza la tabla por resultados sintéticos.</small></p>
 <button class="secundario">Ejecutar DEMO sintética</button></form>
 </div>
-<section class="pfc-card"><h2>Métricas</h2>
+<section class="pfc-card"><h2>Métricas · referencia y combinación de probabilidades</h2>
 <p>Valores entre 0 y 1: por ejemplo, 0,208 equivale a 20,8 %. Cuanto mayor, mejor.</p>
 <div class="table-scroll"><table><tr><th>k · ejemplos por clase</th><th>Exactitud (Accuracy)</th><th>Precisión macro</th><th>Recall macro</th><th>F1 macro</th></tr>
 {% for r in resultados %}<tr><td>{{r.k}}</td><td>{{r.accuracy|floatformat:3}}</td><td>{{r.precision_macro|floatformat:3}}</td><td>{{r.recall_macro|floatformat:3}}</td><td>{{r.f1_macro|floatformat:3}}</td></tr>{% empty %}<tr><td colspan="5">Todavía no hay resultados</td></tr>{% endfor %}</table></div>
 <p><a href="{% url 'exportar' exp.pk %}">Exportar CSV etiquetado</a></p>
 </section>{% if resultados %}<section class="pfc-card" style="margin-top:24px"><h2>Comparación gráfica</h2><p class="pfc-muted">Las cuatro métricas se comparan con la misma consulta. La escala completa evita exagerar diferencias pequeñas.</p><img style="display:block;width:100%;height:auto" src="{% url 'grafico' exp.pk %}" alt="Comparación de exactitud, precisión, recall y F1 para 0, 1, 5 y 10 ejemplos por clase"><a class="pfc-edit" href="{% url 'grafico' exp.pk %}?descargar=1">Descargar gráfico SVG</a></section>
 <section class="pfc-card" style="margin-top:24px"><h2>Matrices de confusión</h2><p>Filas: actividad real. Columnas: predicción. La diagonal contiene los aciertos; las otras celdas muestran confusiones.</p><div class="matrices-grid">{% for k in matrices %}<figure><img style="width:100%;height:auto" src="{% url 'grafico' exp.pk %}?tipo=confusion&amp;k={{ k }}" alt="Matriz de confusión de {{ k }} ejemplos por clase"><figcaption><a href="{% url 'grafico' exp.pk %}?tipo=confusion&amp;k={{ k }}&amp;descargar=1">Descargar matriz {{ k }}-shot</a></figcaption></figure>{% empty %}<p>Las matrices aparecerán al volver a ejecutar este experimento.</p>{% endfor %}</div></section>{% endif %}
+{% if ajuste %}
+<section class="pfc-card">
+<h2>Ajuste convencional</h2>
+<p>La cabeza logística parte del modelo de origen para cada presupuesto. Se usa el mismo soporte y la misma consulta del apartado anterior.</p>
+<div class="table-scroll"><table>
+<tr><th>Ejemplos por clase</th><th>Exactitud</th><th>Precisión macro</th><th>Recall macro</th><th>F1 macro</th><th>Matriz</th></tr>
+{% for r in ajuste %}
+<tr><td>{{ r.shots_por_clase }}</td><td>{{ r.accuracy|floatformat:3 }}</td><td>{{ r.precision_macro|floatformat:3 }}</td><td>{{ r.recall_macro|floatformat:3 }}</td><td>{{ r.f1_macro|floatformat:3 }}</td>
+<td><a href="{% url 'grafico' exp.pk %}?metodo=ajuste_convencional&amp;tipo=confusion&amp;k={{ r.shots_por_clase }}">Ver matriz {{ r.shots_por_clase }}-shot</a></td></tr>
+{% endfor %}
+</table></div>
+<p><a href="{% url 'exportar' exp.pk %}?metodo=ajuste_convencional">Exportar CSV del ajuste convencional</a></p>
+</section>
+{% endif %}
 <details class="explicacion"><summary>¿Qué significa cada valor y la semilla?</summary><dl>
 <dt>Semilla</dt><dd>Número que fija las decisiones aleatorias para repetir el experimento. Aquí determina la selección de ejemplos de soporte y se pasa al entrenamiento. No es una nota ni la cantidad de datos. Repetirla con los mismos datos, configuración y entorno permite reproducir la selección.</dd>
 <dt>k</dt><dd>Ejemplos etiquetados del destino usados por cada actividad para adaptar la predicción. k=0: sin adaptación; k=1, 5 y 10: con pocos ejemplos. Con cinco actividades, k=5 usa 25 ejemplos en total. La consulta permanece igual y sus ejemplos no se usan como soporte.</dd>

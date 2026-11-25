@@ -42,3 +42,24 @@ def prediccion_fewshot(escala, modelo, X_query, X_support=None, y_support=None,
     prob_prototipo = softmax(-d2 / temperatura, axis=1)
     combinado = (1 - peso_prototipo) * base_prob + peso_prototipo * prob_prototipo
     return modelo.classes_[np.argmax(combinado, axis=1)]
+
+
+AJUSTE_PASOS = 30
+AJUSTE_TASA = 0.01
+
+
+def prediccion_ajuste_convencional(escala, modelo, X_query, X_support, y_support):
+    """Afina la cabeza logística desde origen usando únicamente el soporte."""
+    soporte = escala.transform(np.asarray(X_support, dtype=float))
+    etiquetas = np.asarray(y_support)
+    if set(etiquetas) != set(modelo.classes_):
+        raise ValueError('El ajuste convencional requiere soporte de todas las clases')
+    objetivo = etiquetas[:, None] == modelo.classes_
+    pesos = modelo.coef_.copy()
+    sesgo = modelo.intercept_.copy()
+    for _ in range(AJUSTE_PASOS):
+        error = softmax(soporte @ pesos.T + sesgo, axis=1) - objetivo
+        pesos -= AJUSTE_TASA * (error.T @ soporte) / len(soporte)
+        sesgo -= AJUSTE_TASA * error.mean(axis=0)
+    consulta = escala.transform(np.asarray(X_query, dtype=float))
+    return modelo.classes_[np.argmax(consulta @ pesos.T + sesgo, axis=1)]

@@ -5,7 +5,7 @@ from pathlib import Path
 from src.pfc07.auditoria import listar_mat, inspeccionar_mat, guardar_auditoria
 from src.pfc07.procesamiento import preparar_escenario, leer_features
 from src.pfc07.sintetico import generar_ejemplo
-from src.pfc07.evaluacion import ejecutar_experimento
+from src.pfc07.evaluacion import METODOS, ejecutar_experimento
 
 
 def main():
@@ -30,8 +30,9 @@ def main():
     a = subs.add_parser('experimento', help='Base y few-shot con .npz auditados')
     a.add_argument('--origen', required=True)
     a.add_argument('--destino', required=True)
-    a.add_argument('--salida', default='outputs/experimento_real')
+    a.add_argument('--salida', help='Directorio de salida; el predeterminado depende del método')
     a.add_argument('--semilla', type=int, default=42)
+    a.add_argument('--metodo', choices=tuple(METODOS), default='combinacion_probabilidades')
     a = subs.add_parser('demo', help='PRUEBA ARTIFICIAL, NO RESULTADOS REALES')
     a.add_argument('--salida', default='outputs/demo_sintetica')
     args = p.parse_args()
@@ -47,8 +48,11 @@ def main():
                                antena=args.antena, n_antenas=args.n_antenas))
     elif args.accion == 'experimento':
         o, d = leer_features(args.origen), leer_features(args.destino)
-        print(json.dumps(ejecutar_experimento(o, d, args.salida, semilla=args.semilla,
-                                             etiqueta='DATOS_REALES_PENDIENTES_DE_AUDITORIA'), indent=2))
+        salida = args.salida or ('outputs/experimento_real' if args.metodo == 'combinacion_probabilidades'
+                                else 'outputs/experimento_ajuste_convencional')
+        print(json.dumps(ejecutar_experimento(o, d, salida, semilla=args.semilla,
+                                             etiqueta='DATOS_REALES_PENDIENTES_DE_AUDITORIA',
+                                             metodo=args.metodo), indent=2))
     else:
         base = Path(args.salida)
         generar_ejemplo(base / 'datos')

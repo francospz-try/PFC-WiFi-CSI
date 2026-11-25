@@ -1,0 +1,29 @@
+"""Instancia descartable de la aplicación para evidencias visuales y HTTP."""
+import os
+import secrets
+import sys
+import tempfile
+from pathlib import Path
+root=Path(__file__).resolve().parent
+sys.path[:0]=[str(root),str(root/'web_local')]
+password=os.environ.get('PFC_LAB08_PASSWORD')
+if not password:
+    raise SystemExit('Define PFC_LAB08_PASSWORD para la cuenta aislada de verificación.')
+os.environ['DJANGO_SECRET_KEY']=secrets.token_urlsafe(48)
+os.environ['DJANGO_SETTINGS_MODULE']='config.settings'
+from django.conf import settings
+with tempfile.TemporaryDirectory(prefix='pfc08_capturas_') as temp:
+    settings.DATABASES['default']['NAME']=str(Path(temp)/'pruebas.sqlite3')
+    settings.OUTPUT_DIR=Path(temp)/'salidas'
+    import django
+    django.setup()
+    from django.core.management import call_command
+    call_command('migrate',verbosity=0,interactive=False)
+    from django.contrib.auth import get_user_model
+    from portal.models import Dataset,Experimento
+    user=get_user_model().objects.create_user('investigador_lab08',password=password)
+    otro=get_user_model().objects.create_user('otro_investigador')
+    datasets={s:Dataset.objects.create(nombre=f'CSI REAL {s} - receptor a - antena 0',escenario=s,receptor='a',ruta_relativa=f'{s}_real.npz',revisado=True) for s in ('S5','S6','S7')}
+    Experimento.objects.create(nombre='Experimento de otro investigador',propietario=otro,origen=datasets['S5'],destino=datasets['S7'])
+    print('Instancia aislada disponible: http://127.0.0.1:8768/login/',flush=True)
+    call_command('runserver','127.0.0.1:8768',use_reloader=False,insecure_serving=True)

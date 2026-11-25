@@ -12,7 +12,16 @@ from pathlib import Path
 import numpy as np
 from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score, confusion_matrix
 from .config import CLASES, SHOT_VALUES
-from .modelos import entrenar_base, prediccion_fewshot
+from .modelos import (
+    AJUSTE_PASOS, AJUSTE_TASA, entrenar_base, prediccion_ajuste_convencional,
+    prediccion_fewshot,
+)
+
+METODOS = {
+    'combinacion_probabilidades': prediccion_fewshot,
+    'ajuste_convencional': prediccion_ajuste_convencional,
+}
+from .procesamiento import validar_features
 
 
 def dividir_soporte_consulta(y, orden, clases=CLASES, max_shot=10, guardia=4,
@@ -37,9 +46,19 @@ def dividir_soporte_consulta(y, orden, clases=CLASES, max_shot=10, guardia=4,
 
 
 def ejecutar_experimento(origen, destino, salida, semilla=42, shots=SHOT_VALUES,
-                           etiqueta='DATOS_REALES_NO_AUDITADOS'):
+                           etiqueta='DATOS_REALES_NO_AUDITADOS', *,
+                           metodo='combinacion_probabilidades'):
     """Realiza evaluaciÃ³n verificando separaciÃ³n de ambientes y coincidencia de clases."""
+    if metodo not in METODOS:
+        raise ValueError(f'Método de adaptación desconocido: {metodo}')
+    adaptar = METODOS[metodo]
+    shots = tuple(shots)
+    if not shots or len(set(shots)) != len(shots) or any(k not in SHOT_VALUES for k in shots):
+        raise ValueError('shots debe ser una selección no vacía, sin duplicados, de 0/1/5/10')
+    if not isinstance(semilla, (int, np.integer)) or not 0 <= semilla < 2**32:
+        raise ValueError('semilla debe ser un entero entre 0 y 2**32 - 1')
     for datos in (origen, destino):
+        validar_features(datos)
         for campo in ('X', 'y', 'orden', 'escenario', 'receptor'):
             if campo not in datos:
                 raise ValueError(f'Falta campo {campo} en archivo de caracterÃ­sticas')
@@ -74,7 +93,7 @@ def ejecutar_experimento(origen, destino, salida, semilla=42, shots=SHOT_VALUES,
             raise ValueError(f'Shot invÃ¡lido: {k}')
         if k:
             indices = [i for c in CLASES for i in permutaciones[c][:k]]
-            yp = prediccion_fewshot(escala, modelo, Xq, destino['X'][indices], destino['y'][indices])
+            yp = adaptar(escala, modelo, Xq, destino['X'][indices], destino['y'][indices])
         else:
             indices = []
             yp = prediccion_fewshot(escala, modelo, Xq)
@@ -103,12 +122,18 @@ def ejecutar_experimento(origen, destino, salida, semilla=42, shots=SHOT_VALUES,
                  'sha256_modelo': hashlib.sha256((sal / 'modelo_base.joblib').read_bytes()).hexdigest(),
                  'naturaleza': etiqueta, 'ambiente_origen': str(origen['escenario']),
                  'ambiente_destino': str(destino['escenario']),
-                 'receptor': str(destino['receptor']), 'semilla': semilla,
+                 'receptor': str(destino['receptor']), 'semilla': semilla, 'metodo': metodo,
                  'clases': list(CLASES), 'consultas_compartidas': True,
                  'indices_consulta': indice_consulta.tolist(),
                  'seleccion_soporte': {c: permutaciones[c] for c in CLASES},
                  'guardia_ventanas': 4, 'criterio': 'bloques temporales; no sesiones independientes',
                  'hiperparametros': {'base': 'Regresion logistica / StandardScaler',
-                                    'fewshot': 'prototipos + probabilidad base, alpha=0.5 fijo'}}
+                                    'fewshot': (
+                                        'prototipos + probabilidad base, alpha=0.5 fijo'
+                                        if metodo == 'combinacion_probabilidades' else
+                                        {'pasos': AJUSTE_PASOS, 'tasa': AJUSTE_TASA,
+                                         'optimizador': 'descenso de gradiente de lote completo',
+                                         'inicializacion': 'cabeza de origen por cada K'}
+                                    )}}
     (sal / 'protocolo.json').write_text(json.dumps(metadatos, ensure_ascii=False, indent=2), encoding='utf-8')
     return datos_metricas
